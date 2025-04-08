@@ -1,52 +1,53 @@
-import os
-from flask import Flask, jsonify
-import pickle
+from flask import Flask, request, jsonify
+import joblib
 import pandas as pd
+import numpy as np
+from flask_cors import CORS  # Import CORS
 
-# Initialize Flask app
+
 app = Flask(__name__)
 
-# Load the trained model from the correct path
-model = pickle.load(open("xgboost_model.pkl", "rb"))
+CORS(app)
 
-# Sample data (for now, using the sample data you mentioned)
-sample_data = pd.DataFrame({
-    'HighBP': [1.0, 1.0, 0.0, 1.0, 0.0],
-    'HighChol': [0.0, 1.0, 0.0, 1.0, 0.0],
-    'CholCheck': [1.0, 1.0, 1.0, 1.0, 1.0],
-    'BMI': [26.0, 26.0, 26.0, 28.0, 29.0],
-    'Smoker': [0.0, 1.0, 0.0, 1.0, 1.0],
-    'Stroke': [0.0, 1.0, 0.0, 0.0, 0.0],
-    'HeartDiseaseorAttack': [0.0, 0.0, 0.0, 0.0, 0.0],
-    'PhysActivity': [1.0, 0.0, 1.0, 1.0, 1.0],
-    'Fruits': [0.0, 1.0, 1.0, 1.0, 1.0],
-    'Veggies':[1.0 ,0.0, 0.0, 0.0, 1.0],
-    'HvyAlcoholConsump':[0.0, 1.0, 0.0, 0.0, 0.0],
-    'AnyHealthcare': [1.0, 1.0, 1.0, 1.0, 1.0],
-    'NoDocbcCost': [0.0, 0.0, 0.0, 0.0, 0.0],
-    'GenHlth': [3.0, 3.0, 1.0, 3.0, 2.0],
-    'MentHlth': [5.0, 0.0, 0.0, 0.0, 0.0],
-    'PhysHlth': [30.0, 0.0, 10.0, 3.0, 0.0],
-    'DiffWalk': [0.0, 0.0, 0.0, 0.0, 0.0],
-    'Sex': [1.0, 0.0, 1.0, 1.0, 0.0],
-    'Age': [4.0, 12.0, 13.0, 11.0, 8.0],
-    'Education': [6.0, 6.0, 6.0, 6.0, 5.0],
-    'Income': [8.0, 8.0, 8.0, 8.0, 8.0]
-})
 
-# Endpoint to get prediction
-@app.route('/predict', methods=['GET'])
+# Load the model and scaler from the 'server' folder
+model = joblib.load("server/fnn.pkl")
+scaler = joblib.load("server/scaler.pkl")
+
+# Define the order of columns (must match training)
+columns = [
+    "HighBP", "HighChol", "CholCheck", "BMI", "Smoker", "Stroke",
+    "HeartDiseaseorAttack", "PhysActivity", "Fruits", "Veggies",
+    "HvyAlcoholConsump", "AnyHealthcare", "NoDocbcCost", "GenHlth",
+    "MentHlth", "PhysHlth", "DiffWalk", "Sex", "Age", "Education", "Income"
+]
+
+@app.route('/predict', methods=['POST'])
 def predict():
-    # Using the sample data to predict the diabetes binary outcome
-    sample_input = sample_data.iloc[2].values.reshape(1, -1)  # Reshape to match the model's input shape
-    print(sample_input)
-    prediction = model.predict(sample_input)
-    print(prediction)
+    try:
+        # Parse the incoming JSON data
+        input_data = request.get_json()
+        print(input_data)
 
-    # Returning the prediction in the response as JSON
-    return jsonify({
-        'prediction': int(prediction[0])  # Convert prediction to integer and send as response
-    })
+        # Convert the JSON data into a pandas DataFrame
+        input_df = pd.DataFrame([input_data])
+
+        # Ensure the columns match the model's expected input (order and feature names)
+        input_df = input_df[columns]  # Select the columns used during training
+
+        # Scale the input data using the saved scaler
+        input_scaled = scaler.transform(input_df)
+
+        # Predict using the model
+        predictions = model.predict(input_scaled)
+
+        print(predictions)
+
+        # Return predictions as a JSON response
+        return jsonify({'prediction': int(predictions[0])})  # Convert to integer and return
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
 
 if __name__ == '__main__':
     app.run(debug=True)
