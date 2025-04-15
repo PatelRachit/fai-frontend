@@ -332,6 +332,9 @@ const UserDetailsForm = () => {
           open={loading}
         >
           <CircularProgress color="inherit" />
+          <p className="text-white mt-4 text-lg font-medium">
+            Analyzing your responses... This might take a few seconds.
+          </p>
         </Backdrop>
       </div>
     </section>
